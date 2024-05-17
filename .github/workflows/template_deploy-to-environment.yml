@@ -1,0 +1,61 @@
+on:
+  workflow_call:
+    inputs:
+      environment: 
+        type: string
+        required: true
+        description: 'The environment to deploy to'
+      runs-on:
+        type: string
+        required: false
+        description: 'The runner to run on'
+        default: 'ubuntu-latest'
+    secrets:
+      GH_TOKEN:
+        required: true
+        description: 'The GitHub Token'
+      GH_RUNNER_REGISTRATION_TOKEN:
+        required: true
+        description: 'The GitHub Token to use to register runners'
+
+permissions:
+      id-token: write
+      contents: read
+
+jobs:
+  prepare_vars:
+    name: Prepare Variables
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - id: prepare_vars
+        run: |
+          echo "AZURE_CLIENT_ID=${{ vars.AZURE_CLIENT_ID }}" >> "$GITHUB_OUTPUT"
+          echo "AZURE_TENANT_ID=${{ vars.AZURE_TENANT_ID }}" >> "$GITHUB_OUTPUT"
+          echo "terraform-subscription-id=${{ vars.SUBSCRIPTION_GITHUB_RUNNERS_DEV }}" >> "$GITHUB_OUTPUT"
+          echo "terraform-backend-subscription-id=${{ vars.SUBSCRIPTION_GITHUB_RUNNERS_DEV }}" >> "$GITHUB_OUTPUT"
+          echo "terraform-backend-storage-account-name=${{ vars.ID_GITHUB_RUNNERS_DEV }}" >> "$GITHUB_OUTPUT"
+    outputs:
+      AZURE_CLIENT_ID: ${{ steps.prepare_vars.outputs.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ steps.prepare_vars.outputs.AZURE_TENANT_ID }}
+      terraform-subscription-id: ${{ steps.prepare_vars.outputs.terraform-subscription-id }}
+      terraform-backend-subscription-id: ${{ steps.prepare_vars.outputs.terraform-backend-subscription-id }}
+      terraform-backend-storage-account-name: ${{ steps.prepare_vars.outputs.terraform-backend-storage-account-name }}
+
+  deploy_terraform: 
+    uses: alztestappvia/alz_cicd_templates/.github/workflows/terraform-deploy.yaml@main
+    name: Run Terraform
+    needs: prepare_vars
+    with:
+      environment: ${{ inputs.environment }}
+      pool: ${{ inputs.runs-on }}
+      terraform-subscription-id: ${{ needs.prepare_vars.outputs.terraform-subscription-id }}
+      terraform-backend-subscription-id: ${{ needs.prepare_vars.outputs.terraform-backend-subscription-id }}
+      terraform-backend-storage-account-name: ${{ needs.prepare_vars.outputs.terraform-backend-storage-account-name }}
+      terraform-backend-filename: github-runners-${{ inputs.environment }}.tfstate
+      terraform-command-options: '-var environment=${{ inputs.environment }} -input=false -no-color'
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      AZURE_CLIENT_ID: ${{ needs.prepare_vars.outputs.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ needs.prepare_vars.outputs.AZURE_TENANT_ID }}
+      secure-terraform-command-options: -var github_pat=${{ secrets.GH_RUNNER_REGISTRATION_TOKEN }}

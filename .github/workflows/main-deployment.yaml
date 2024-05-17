@@ -1,0 +1,38 @@
+on:
+  push:
+    branches:
+    - main
+    - feature/*
+    - release/*
+  workflow_dispatch:
+
+
+name: Deploy Github Runners
+
+jobs:
+### RUN CHECKS ###
+  run_checks:
+    uses: alztestappvia/alz_cicd_templates/.github/workflows/terraform-checks.yaml@main
+    name: Run Checks
+    secrets:
+      GH_TOKEN: ${{ secrets.ALZ_GITHUB_MODULE_READ_TOKEN }}
+
+  deploy_to_dev:
+    uses: ./.github/workflows/template_deploy-to-environment.yml
+    name: Deploy to Dev
+    needs: run_checks
+    with:
+      environment: 'dev'
+    secrets:
+      GH_TOKEN: ${{ secrets.ALZ_GITHUB_MODULE_READ_TOKEN }}
+      GH_RUNNER_REGISTRATION_TOKEN: ${{ secrets.GH_RUNNER_REGISTRATION_TOKEN }}
+
+  deploy_to_prod:
+    uses: ./.github/workflows/template_deploy-to-environment.yml
+    name: Deploy to Prod
+    needs: run_checks
+    with:
+      environment: 'prd'
+    secrets:
+      GH_TOKEN: ${{ secrets.ALZ_GITHUB_MODULE_READ_TOKEN }}
+      GH_RUNNER_REGISTRATION_TOKEN: ${{ secrets.GH_RUNNER_REGISTRATION_TOKEN }}
